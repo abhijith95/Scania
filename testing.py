@@ -56,24 +56,27 @@ class car:
                     list of size two containing the lower and upper limit of deviation from target position
         """
         
-        ke,kv,kt = 0.00005, 0, 0.0
-        x = ke*(e**2)
+        ke,kv,kt = 0.00, 0.1, 0.0
+        x = ke*(abs(e))
         if vel != 0:
-            x+= kv/abs(vel**2) + kt/t
+            x+= kv/abs(abs(vel)) + kt/t
         # saturate x to +/- 10 because there is no need to go beyond this range
         if x > 20:
             x = 10
         if x < -20:
             x = -10
-        self.x.append(x)
         try:
             ux = 1/(1+math.exp(-x))
         except:
             ux = 0
+        
         if dead_band[0] <= e <= dead_band[1]:
+            self.x.append(0)
             return 0
         if ux >= 0.5:
+            self.x.append(ux)
             return (1*np.sign(e))
+        self.x.append(0)
         return 0
 
 def main():
@@ -108,7 +111,7 @@ def main():
             break
     
     # characterisitc texts
-    txt = "Overshoot : " + str(max(position)) + "\nSettling time: " + str(int(temp[-1])) + " s"
+    
     # plotting graphs
     fig, axs = plt.subplots(3)
     axs[0].plot(time, position)
@@ -116,9 +119,14 @@ def main():
     axs[0].plot(time, [goal_pos+dead_band[0]]*len(time), 'g')
     axs[0].plot(time, [goal_pos+dead_band[1]]*len(time), 'g')
     axs[0].plot(time, [max(position)]*len(time), 'k')
-    axs[0].plot([temp[-1]]*len(range(0, int(max(position))+5)), range(0, int(max(position))+5), "m--")
+    
+    if temp:
+        axs[0].plot([temp[-1]]*len(range(0, int(max(position))+5)), range(0, int(max(position))+5), "m--")
+        txt = "Overshoot : " + str(max(position)) + "\nSettling time: " + str(int(temp[-1])) + " s"
+        fig.text(1,1, txt, ha='left', va='top')
+        
     axs[0].grid()
-    fig.text(1,1, txt, ha='left', va='top')
+    
     axs[0].set_ylabel("Position (m)")
     
     axs[1].plot(time, velocity)
@@ -129,9 +137,9 @@ def main():
     axs[2].set_ylabel("Valve position")
     axs[2].set_xlabel("Time (s)")
     
-    # fig2,axs2 = plt.subplots(2)
-    # axs2[0].plot(position,c.x)
-    # axs2[0].grid()
+    fig2,axs2 = plt.subplots(2)
+    axs2[0].plot(position,c.x)
+    axs2[0].grid()
     # axs2[1].plot(velocity,c.x)
     # axs2[1].grid()
     
