@@ -13,7 +13,7 @@ class controller:
     min_wt = 5
     max_wt = 35
     weight_buckets = np.arange(start=min_wt, stop=max_wt, step=5)
-    control_buckets = [0.75, 0.5, 0.5, 0.5, 0.5, 0.5, 0.4]
+    control_buckets = [0.75, 0.35, 0.5, 0.5, 0.5, 0.5, 0.4]
     learn_parameter = 0
     allowable_ovrshoot = 1.1
 
@@ -107,7 +107,7 @@ class controller:
         if self.learn_parameter != 0:
             print(self.control_buckets[self.learn_index], self.learn_parameter)
             self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] + \
-                                                     ((1 - self.learn_parameter)/1)
+                                                     ((1 - self.learn_parameter))
             # if self.learn_parameter > self.control_buckets[self.learn_index]:
             #     self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] - 0.05
             # else:
