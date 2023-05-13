@@ -37,3 +37,5 @@ chumma.py
 Pendulum_ Controlling an inverted pendulum using fuzzy logic.pdf
 .idea/vcs.xml
 __pycache__/testing.cpython-310.pyc
+adaptive_ctrl.py
+__pycache__/car_mechanics.cpython-310.pyc

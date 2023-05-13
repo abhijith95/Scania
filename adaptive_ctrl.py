@@ -1,6 +1,5 @@
-from testing import car
+from car_mechanics import car
 import numpy as np
-import math
 import matplotlib.pyplot as plt
 from enum import Enum
 
@@ -13,7 +12,7 @@ class controller:
     min_wt = 5
     max_wt = 35
     weight_buckets = np.arange(start=min_wt, stop=max_wt, step=5)
-    control_buckets = [0.75, 0.35, 0.5, 0.5, 0.5, 0.5, 0.4]
+    control_buckets = [0.75, 0.5, 0.5, 0.5, 0.5, 0.5, 0.4]
     learn_parameter = 0
     allowable_ovrshoot = 1.1
 
@@ -22,17 +21,42 @@ class controller:
         self.reset_controller()
 
     def reset_controller(self):
+        """
+        Function to reset the controller before every manuever.
+        """
         self.old_position = 0
         self.saturate_timer = 0
         self.controller_state = Controller_state.SMART_CONTROLLER
         self.learn_parameter = 0
 
     def set_goal_pos(self, goal_pos):
+        """
+        Get the end position of the system.
+
+        Parameters
+        ----------
+        goal_pos : float
+            End position of the car
+        """
         self.goal_pos = goal_pos
         self.dead_band_percent = [(i+self.goal_pos)/self.goal_pos for i in self.dead_band]
         self.switch_tolerance = [-0.2, 0.2]
 
     def find_ctrlr_bucket(self, car_wt):
+        """
+        Function that will return the current vehicle's bucket index. This will then used by the controller to take
+        the correct decision
+
+        Parameters
+        ----------
+        car_wt : float
+            Current weight of the vehicle in Kg.
+
+        Returns
+        -------
+        int
+            Index where the weight lies
+        """
         if car_wt < self.weight_buckets[0]:
             index = 0
         elif car_wt > self.weight_buckets[-1]:
@@ -50,11 +74,12 @@ class controller:
         shall trigger a change from smart controller to a regular controller.
         Args:
             current_pos_percent (): float
+            current_pos (): float
         Returns:
             Bool: whether to switch or not
         """
         if abs(current_pos_percent) < self.dead_band_percent[0]:
-            # if the system is saturating outside the tolerance zone then we switch to the regular controller
+            # if the system is saturating then we need to switch to the regular controller
             if self.switch_tolerance[0] <= (current_pos - self.old_position) <= self.switch_tolerance[1]:
                 self.saturate_timer += 1
                 if self.saturate_timer > 10:
@@ -80,6 +105,8 @@ class controller:
         index = self.find_ctrlr_bucket(car_wt)
 
         if self.controller_state == Controller_state.SMART_CONTROLLER:
+            # The smart controller is the controller which learns with every iteration. It will try to control the
+            # system without any undershoot or overshoot.
             if abs(current_pos_percent) <= self.control_buckets[index]:
                 output = 1 * np.sign(1 - current_pos_percent)
             else:
@@ -88,6 +115,7 @@ class controller:
                 self.controller_state = Controller_state.REGULAR_CONTROLLER
 
         if self.controller_state == Controller_state.REGULAR_CONTROLLER:
+            # Regular bang bang controller that switches ON and OFF the acceleration based on the current position
             if abs(current_pos_percent) < self.dead_band_percent[0] or \
                     abs(current_pos_percent) > self.dead_band_percent[1]:
                 output = 1 * np.sign(1 - current_pos_percent)
@@ -104,14 +132,13 @@ class controller:
         return output
 
     def learn(self):
+        """
+        Function that updates the threshold based on the current vehicle weight.
+        """
         if self.learn_parameter != 0:
             print(self.control_buckets[self.learn_index], self.learn_parameter)
             self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] + \
                                                      ((1 - self.learn_parameter))
-            # if self.learn_parameter > self.control_buckets[self.learn_index]:
-            #     self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] - 0.05
-            # else:
-            #     self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] + 0.05
 
 
 def main():
