@@ -53,8 +53,7 @@ class controller:
         Returns:
             Bool: whether to switch or not
         """
-        if abs(current_pos_percent) < self.dead_band_percent[0] or \
-            abs(current_pos_percent) > self.dead_band_percent[1]:
+        if abs(current_pos_percent) < self.dead_band_percent[0]:
             # if the system is saturating outside the tolerance zone then we switch to the regular controller
             if self.switch_tolerance[0] <= (current_pos - self.old_position) <= self.switch_tolerance[1]:
                 self.saturate_timer += 1
@@ -66,9 +65,8 @@ class controller:
             else:
                 self.saturate_timer = 0
 
-        elif abs(current_pos_percent) > self.allowable_ovrshoot:
+        elif abs(current_pos_percent) > self.dead_band_percent[1]:
             # if the system has overshot the allowable overshoot then we switch to regular controller
-            self.learn_parameter = np.copy(self.allowable_ovrshoot)
             return True
 
         else:
@@ -109,7 +107,7 @@ class controller:
         if self.learn_parameter != 0:
             print(self.control_buckets[self.learn_index], self.learn_parameter)
             self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] + \
-                                                     ((1 - self.learn_parameter)/2.5)
+                                                     ((1 - self.learn_parameter)/1)
             # if self.learn_parameter > self.control_buckets[self.learn_index]:
             #     self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] - 0.05
             # else:
