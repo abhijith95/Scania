@@ -1,6 +1,7 @@
 from car_mechanics import car
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import draw, show
 from enum import Enum
 
 
@@ -12,7 +13,7 @@ class controller:
     min_wt = 5
     max_wt = 35
     weight_buckets = np.arange(start=min_wt, stop=max_wt, step=5)
-    control_buckets = [0.75, 0.5, 0.5, 0.5, 0.5, 0.5, 0.4]
+    control_buckets = [0.75, 0.45, 0.5, 0.5, 0.5, 0.5, 0.4]
     learn_parameter = 0
     allowable_ovrshoot = 1.1
 
@@ -22,7 +23,7 @@ class controller:
 
     def reset_controller(self):
         """
-        Function to reset the controller before every manuever.
+        Function to reset the controller before every maneuver.
         """
         self.old_position = 0
         self.saturate_timer = 0
@@ -138,80 +139,117 @@ class controller:
         if self.learn_parameter != 0:
             print(self.control_buckets[self.learn_index], self.learn_parameter)
             self.control_buckets[self.learn_index] = self.control_buckets[self.learn_index] + \
-                                                     ((1 - self.learn_parameter))
+                                                     (1 - self.learn_parameter)
+            return True
+        return False
+
+
+def step_response(run_time, dt, car_mass, controller_obj, car_obj):
+    """
+    Function that will solve the differential equations for a set run time.
+
+    Parameters
+    ----------
+    run_time : (int) Total run time of the simulation
+    dt : (float) Step time for the simulation
+    car_mass : (float) Current weight of the vehicle
+    controller_obj : (type controller) This is the class object of controller
+    car_obj : (type car) This is the class object of the vehicle, that contains the equations of motion
+
+    Returns
+    -------
+    List containing the output from the simulation run
+    """
+    t, pos, vel, err = 0, 0, 0, 0
+    position, velocity, time, u, error, ctrlr_state = [], [], [], [], [], []
+    position.append(pos)
+    velocity.append(vel)
+    time.append(t)
+    u.append(0)
+    ctrlr_state.append(controller_obj.controller_state.value)
+
+    while t <= run_time:
+        force = controller_obj.control_output(pos, car_mass)
+        u.append(force)
+        temp_pos, temp_vel = car_obj.solve_for_dt(x0=[pos, vel], time_span=[t, t + dt], f=force * car_obj.force_scale)
+
+        t += dt
+        pos = np.copy(temp_pos)
+        vel = np.copy(temp_vel)
+        position.append(pos)
+        velocity.append(vel)
+        time.append(t)
+        error.append(err)
+        ctrlr_state.append(controller_obj.controller_state.value)
+
+    return [position, velocity, time, u, error, ctrlr_state]
+
+
+def plot_sys_response(axs, plot_data, learning_iteration, plot_window):
+    """
+    Function that will plot the system response to a step input
+    Parameters
+    ----------
+    plot_window : (int)
+    axs : Axes to plot in
+    plot_data : A list of input data required for plotting
+    learning_iteration : Number of iterations until the system stopped learning
+    """
+    iteration_time, iteration_position, goal_pos, dead_band_percent, allowable_ovrshoot, plot_names, plot_title = \
+        plot_data
+    plot_names.insert(0, "Goal pos tolerance")
+    plot_names.insert(0, "Goal pos tolerance")
+    plot_names.insert(2, "Allowable overshoot")
+
+    plt.figure(plot_window)
+    plt.title(plot_title)
+    plt.plot(iteration_time[0], [goal_pos * dead_band_percent[0]] * len(iteration_time[0]), 'r--')
+    plt.plot(iteration_time[0], [goal_pos * dead_band_percent[1]] * len(iteration_time[0]), 'r--')
+    plt.plot(iteration_time[0], [goal_pos * allowable_ovrshoot] * len(iteration_time[0]), 'b--')
+    plt.grid()
+    plt.ylabel("Position (m)")
+    for i in range(learning_iteration):
+        plt.plot(iteration_time[i], iteration_position[i])
+
+    plt.legend(plot_names)
+    draw()
 
 
 def main():
     dt = 0.1
-    force_scale = 50
     goal_pos = 50
     dead_band = [-0.5, 1]
     ctrl = controller(dead_band)
     ctrl.set_goal_pos(goal_pos)
-    iteration = 0
-    fig, axs = plt.subplots(3)
-    iteration_position = []
-    iteration_time = []
-    # plot_colors = ['g--', 'b--', 'm', 'y', 'k']
+    car_mass = 10
+    run_cases = [[car_mass, 0.15, 50], [car_mass, 0.18, 50], [car_mass, 0.18, 40]]
+    fig, axs = plt.subplots(1)
 
-    while iteration < 8:
-        ctrl.reset_controller()
-        iteration += 1
-        car_mass = 10
-        c = car(carMass=car_mass, frictionCoeff=0.15)
-        t, pos, vel, err = 0, 0, 0, 0
-        prev_err = 0
-        esum, edot = 0, 0
-        position, velocity, time, u, error, ctrlr_state = [], [], [], [], [], []
-        error_velocity = []
-        position.append(pos)
-        velocity.append(vel)
-        time.append(t)
-        u.append(0)
-        ctrlr_state.append(ctrl.controller_state.value)
-        error.append(goal_pos - pos)
+    for i, run_case in enumerate(run_cases):
+        learning = True
+        learning_iteration = 0
+        iteration_position, iteration_time, plot_names = [], [], []
+        # plot_colors = ['g--', 'b--', 'm', 'y', 'k']
 
-        while t <= 30:
+        while learning_iteration < 7:
+            ctrl.reset_controller()
+            learning_iteration += 1
+            c = car(carMass=run_case[0], frictionCoeff=run_case[1], force_scale=run_case[2])
 
-            force = ctrl.control_output(pos, car_mass)
-            u.append(force)
-            temp_pos, temp_vel = c.solve_for_dt(x0=[pos, vel], time_span=[t, t+dt], f=force*force_scale)
+            plot_names.append(ctrl.control_buckets[ctrl.find_ctrlr_bucket(car_mass)])
+            position, velocity, time, u, error, ctrlr_state = step_response(run_time=30, dt=dt, car_mass=car_mass,
+                                                                            controller_obj=ctrl, car_obj=c)
+            learning = ctrl.learn()
+            iteration_position.append(position)
+            iteration_time.append(time)
 
-            t += dt
-            pos = np.copy(temp_pos)
-            vel = np.copy(temp_vel)
-            err = goal_pos - pos
-            err_vel = (err - prev_err)/dt
-            esum += err*dt
-            prev_err = np.copy(err)
+        plot_title = "Car mass: " + str(run_case[0]) + " friction: " + str(run_case[1]) + " force: " + str(run_case[2])
+        plot_sys_response(axs=axs, plot_data=[iteration_time, iteration_position, goal_pos,
+                                              ctrl.dead_band_percent, ctrl.allowable_ovrshoot, plot_names,
+                                              plot_title],
+                          learning_iteration=learning_iteration, plot_window=i+1)
 
-            position.append(pos)
-            velocity.append(vel)
-            time.append(t)
-            error.append(err)
-            error_velocity.append(err_vel)
-            ctrlr_state.append(ctrl.controller_state.value)
-
-        ctrl.learn()
-        iteration_position.append(position)
-        iteration_time.append(time)
-        # plotting the system variable
-
-    axs[0].plot(iteration_time[0], [goal_pos*ctrl.dead_band_percent[0]] * len(iteration_time[0]), 'r--')
-    axs[0].plot(iteration_time[0], [goal_pos*ctrl.dead_band_percent[1]] * len(iteration_time[0]), 'r--')
-    axs[0].plot(iteration_time[0], [goal_pos*ctrl.allowable_ovrshoot] * len(iteration_time[0]), 'b--')
-    axs[0].grid()
-    axs[0].set_ylabel("Position (m)")
-    for i in range(iteration):
-        axs[0].plot(iteration_time[i], iteration_position[i])
-    # axs[1].plot(time, u)
-    # axs[1].grid()
-    # axs[1].set_ylabel("Valve position")
-    # axs[2].plot(time, ctrlr_state)
-    # axs[2].grid()
-    # axs[2].set_ylabel("Controller state")
-    # axs[2].set_xlabel("Time (s)")
-    plt.show()
+    show()
 
 
 if __name__ == "__main__":

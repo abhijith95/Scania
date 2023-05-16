@@ -11,11 +11,12 @@ class car:
 
     g = 9.81
 
-    def __init__(self, carMass, frictionCoeff):
+    def __init__(self, carMass, frictionCoeff, force_scale):
         self.mass = carMass
         self.mu = frictionCoeff
         self.x = []
         self.x.append(0)
+        self.force_scale = force_scale
     
     def eom(self,t,x,f):
         """
